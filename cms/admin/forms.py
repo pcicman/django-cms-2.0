@@ -69,7 +69,9 @@ class PageForm(PageAddForm):
     overwrite_url = forms.CharField(label=_('Overwrite url'), max_length=255, required=False,
         help_text=_('Keep this field empty if standard path should be used.'))
     # moderation state
-    moderator_state = forms.IntegerField(widget=forms.HiddenInput, required=False, initial=Page.MODERATOR_CHANGED) 
+    moderator_state = forms.IntegerField(widget=forms.HiddenInput, required=False, initial=Page.MODERATOR_CHANGED)
+    #moderator_state = forms.IntegerField(widget=forms.HiddenInput, required=False)
+    
     # moderation - message is a fake filed
     moderator_message = forms.CharField(max_length=1000, widget=forms.HiddenInput, required=False)
     
@@ -79,6 +81,12 @@ class PageForm(PageAddForm):
         help_text=_('A description of the page sometimes used by search engines.'))
     meta_keywords = forms.CharField(label='Keywords meta tag', max_length=255, required=False,
         help_text=_('A list of comma seperated keywords sometimes used by search engines.'))    
+    
+    """
+    def __init__(self, *args, **kwargs):
+        super(PageForm, self).__init__(*args, **kwargs)
+        self.fields['moderator_state'].initial = self.instance.moderator_state
+    """
         
     def clean_reverse_id(self):
         id = self.cleaned_data['reverse_id']

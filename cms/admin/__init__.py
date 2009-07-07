@@ -432,7 +432,7 @@ class PageAdmin(admin.ModelAdmin):
     
     def save_model(self, request, obj, form, change):
         """
-        Move the page in the tree if neccesary and save every placeholder
+        Move the page in the tree if necessary and save every placeholder
         Content object.
         """
         target = request.GET.get('target', None)
@@ -461,10 +461,11 @@ class PageAdmin(admin.ModelAdmin):
                 obj.rght = old_obj.rght
                 obj.lft = old_obj.lft
                 obj.tree_id = old_obj.tree_id
+            
             force_with_moderation = target is not None and position is not None and \
                 will_require_moderation(target, position)
-            
             obj.save(force_with_moderation=force_with_moderation)
+            
         language = form.cleaned_data['language']
         
         if target is not None and position is not None:
@@ -475,8 +476,6 @@ class PageAdmin(admin.ModelAdmin):
             else:
                 obj.move_to(target, position)
                 
-        
-        
         Title.objects.set_or_create(
             obj, 
             language, 

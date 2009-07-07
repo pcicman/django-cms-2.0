@@ -1,6 +1,9 @@
 from django.db.models.base import ModelBase
 import sys
+import sha
+import re
 import urllib2
+import copy
 from os.path import join
 from datetime import datetime, date
 from django.db import models
@@ -13,6 +16,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.safestring import mark_safe
 from django.template.loader import render_to_string
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.core import serializers
 from publisher import Publisher, Mptt
 from publisher.errors import MpttCantPublish
 from cms.utils.urlutils import urljoin
@@ -23,6 +27,9 @@ from cms.models.managers import PageManager, TitleManager, PagePermissionsPermis
     BasicPagePermissionManager, PagePermissionManager, PageModeratorStateManager
 from cms.models import signals as cms_signals
 from cms.utils.page import get_available_slug
+
+
+
 
 if 'reversion' in settings.INSTALLED_APPS:
     import reversion
@@ -96,15 +103,7 @@ class Page(Publisher, Mptt):
     lft = models.PositiveIntegerField(db_index=True, editable=False)
     rght = models.PositiveIntegerField(db_index=True, editable=False)
     tree_id = models.PositiveIntegerField(db_index=True, editable=False)
-    
-    
-    def get_hash(self):
-        """Used in object comparison - if there were some change between objects
-        generates sha1.
-        """
         
-    
-    
     # Managers
     objects = PageManager()
     permissions = PagePermissionsPermissionManager()
@@ -243,16 +242,36 @@ class Page(Publisher, Mptt):
                 some existing page and this new page will require moderation; 
                 this is because of how this adding works - first save, then move
         """
+        
+        print "---------- save ----------"
+        
         # Published pages should always have a publication date
         publish_directly, under_moderation = False, False
         
+        
+        
         if settings.CMS_MODERATOR:
             under_moderation = force_with_moderation or self.pk and bool(self.get_moderator_queryset().count())
-        
-        
+            
         created = not bool(self.pk)
+        
         if settings.CMS_MODERATOR:
-            if change_state:
+            """
+            if not created:
+                # existing page...
+    
+                old = Page.objects.get(pk=self.id)                
+                
+                was_changed = not self.hexdigest(exclude=['moderator_state']) == old.hexdigest(exclude=['moderator_state'])
+                if was_changed:
+                    print "Was changed"
+                    # change state if there were some change on page
+                    self.moderator_state = Page.MODERATOR_NEED_APPROVEMENT #Page.MODERATOR_CHANGED
+            else:
+                self.moderator_state = Page.MODERATOR_NEED_APPROVEMENT #Page.MODERATOR_CHANGED
+            """
+            
+            if change_state: # and was_changed:
                 if self.moderator_state is not Page.MODERATOR_CHANGED:
                     # always change state to need approvement when there is some change
                     self.moderator_state = Page.MODERATOR_NEED_APPROVEMENT
@@ -266,6 +285,7 @@ class Page(Publisher, Mptt):
         if self.publication_date is None and self.published:
             self.publication_date = datetime.now()
         # Drafts should not, unless they have been set to the future
+        
         if self.published:
             if settings.CMS_SHOW_START_DATE:
                 if self.publication_date and self.publication_date <= datetime.now():
@@ -682,6 +702,28 @@ class Page(Publisher, Mptt):
             return self.public.published
         #return is_public_published(self)
         return False
+    
+    def hexdigest(self, exclude):
+        """Used in object comparison - if there were some change between objects
+        generates sha1.
+        
+        Currently takes care for page and its titles only. If there will be some
+        other relations (mostly m2m, or foreign key to Page model) added in 
+        future, this function must be changed.
+        """ 
+        
+        if exclude:
+            copied = copy.deepcopy(self)
+            for name in exclude:
+                setattr(copied, name, '_ex_')
+        
+        data = serializers.serialize("json", [copied]) # + list(self.title_set.all()))
+        data = re.sub(r': (null|0|false|"")[,}]', ': 0', data)
+        data = re.sub(r': (1|true)[,}]', ': 1', data)
+        
+        data += serializers.serialize("json", self.title_set.all())
+        return sha.new(data).hexdigest()
+    
         
 class Title(Publisher):
     language = models.CharField(_("language"), max_length=5, db_index=True)
@@ -736,6 +778,8 @@ class Title(Publisher):
         if self.has_url_overwrite:
             return self.path
         return None
+    
+    
         
         
 class EmptyTitle(object):

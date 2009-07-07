@@ -24,7 +24,7 @@ def page_changed(page, old_page=None, force_moderation_action=None):
     if not old_page:
         # just newly created page
         PageModeratorState(user=user, page=page, action=PageModeratorState.ACTION_ADD).save()
-    
+        
     if (old_page is None and page.published) or \
         (old_page and not old_page.published == page.published):
         action = page.published and PageModeratorState.ACTION_PUBLISH or PageModeratorState.ACTION_UNPUBLISH
