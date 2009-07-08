@@ -4,9 +4,13 @@ from django.contrib.sites.models import Site
 from django.db.models import Q
 from cms import settings
 from cms.utils.urlutils import levelize_path
-from cms.exceptions import NoPermissionsException
-from sets import Set
+from cms.exceptions import NoPermissionsException, NoHomeFound
 from cms.cache.permissions import get_permission_cache, set_permission_cache
+
+try:
+    set
+except NameError:
+    from sets import Set as set
 
 class PageManager(models.Manager):
     def on_site(self):
@@ -89,7 +93,11 @@ class PageManager(models.Manager):
         return self.published().filter(title_set__application_urls__gt='').distinct()
     
     def get_home(self):
-        return self.published().order_by("tree_id")[0]
+        try:
+            home = self.published().order_by("tree_id")[0]
+        except IndexError:
+            raise  NoHomeFound('No Root page found. Publish at least on page!')
+        return home
         
         
 class TitleManager(models.Manager):
@@ -373,7 +381,7 @@ class PagePermissionsPermissionManager(models.Manager):
             if len(permission_set) is 1:
                 page_id_list = permission_set[0]
             else:
-                page_id_list = list(Set(can_change).union(Set(can_add)))
+                page_id_list = list(set(can_change).union(set(can_add)))
         return page_id_list
         
     
